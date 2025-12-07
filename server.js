@@ -4,28 +4,30 @@ import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 
+// load .env file
 dotenv.config();
 
 const app = express();
-app.use(cors());               // allow all origins (Android, web, etc.)
+app.use(cors());
 app.use(express.json());
 
-// 🔹 Initialize OpenAI client (uses key from environment variable)
+// ✅ create OpenAI client (key from environment)
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Simple test route
+// ✅ simple test route (for browser)
 app.get("/", (req, res) => {
   res.send("Career AI Backend Running 🚀");
 });
 
-// 🔹 Main AI endpoint
+// ✅ main API route used by Android app
 app.post("/career-ai", async (req, res) => {
   try {
     const userMessage = req.body.message;
+
     if (!userMessage || userMessage.trim().length === 0) {
-      return res.status(400).json({ error: "message is required" });
+      return res.status(400).json({ error: "Message is required" });
     }
 
     const response = await client.chat.completions.create({
@@ -34,23 +36,30 @@ app.post("/career-ai", async (req, res) => {
         {
           role: "system",
           content:
-            "You are an expert Indian career counselor. You help students choose streams, branches, exams and colleges. Explain in simple English.",
+            "You are an expert Indian career counsellor. " +
+            "Help students decide courses, branches, and suitable colleges based on their marks and interests. " +
+            "Explain in very simple English.",
         },
         { role: "user", content: userMessage },
       ],
-      max_tokens: 400,
+      max_tokens: 350,
     });
 
-    const botReply = response.choices[0]?.message?.content ?? "No reply";
+    const botReply = response.choices[0]?.message?.content ?? "Sorry, I have no answer.";
+
     res.json({ reply: botReply });
   } catch (error) {
-    console.error("OpenAI error:", error);
-    res.status(500).json({ error: "AI server error" });
+    console.error("Career AI error:", error);
+
+    // small error message to app
+    res.status(500).json({
+      error: "AI server error. Please try again later.",
+    });
   }
 });
 
-// 🔹 Start server (Render will give PORT env var)
+// ✅ start server (Render will use process.env.PORT)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 AI backend running at http://localhost:${PORT}`);
+  console.log(`🚀 Career AI backend running on port ${PORT}`);
 });
