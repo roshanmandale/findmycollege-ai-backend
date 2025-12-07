@@ -1,8 +1,8 @@
-// server.js
+// server.js - Groq version
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import OpenAI from "openai";
 
 dotenv.config();
 
@@ -10,61 +10,77 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ----- OpenAI client -----
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// ------------ CONFIG -------------
+const PORT = process.env.PORT || 3000;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+// Simple check
 app.get("/", (req, res) => {
-  res.send("Career AI Backend Running 🚀");
+  res.send("Career AI Backend (Groq) Running 🚀");
 });
 
-// ----- Main endpoint used by Android app -----
+// ------------ MAIN ENDPOINT -------------
 app.post("/career-ai", async (req, res) => {
   try {
     const userMessage = req.body.message;
 
     if (!userMessage || typeof userMessage !== "string") {
-      return res.status(400).json({ error: "Invalid or missing 'message' field" });
+      return res.status(400).json({ error: "Missing 'message' string in body" });
     }
 
-    console.log("👉 Received message from app:", userMessage);
-
-    const response = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
+    // Build request body for Groq
+    const body = {
+      model: "llama-3.1-8b-instant",   // or any model you see in Groq dashboard
       messages: [
         {
           role: "system",
           content:
-            "You are an expert Indian career counsellor. " +
-            "Give clear, practical guidance about courses, exams and colleges, " +
-            "especially for Maharashtra / India context."
+            "You are a helpful Indian career counsellor. Give clear, practical " +
+            "guidance about careers, streams, exams and best colleges, especially " +
+            "for Maharashtra / India context."
         },
-        { role: "user", content: userMessage }
+        {
+          role: "user",
+          content: userMessage
+        }
       ],
-      max_tokens: 300
+      max_tokens: 400
+    };
+
+    // Call Groq API using fetch (Node 18+ has global fetch)
+    const groqResponse = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
     });
 
-    const botReply = response.choices[0]?.message?.content?.trim() ||
-      "Sorry, I couldn't generate a proper answer. Please try again.";
+    if (!groqResponse.ok) {
+      const errorText = await groqResponse.text();
+      console.error("Groq API error:", groqResponse.status, errorText);
+      return res
+        .status(500)
+        .json({ error: "Groq API error", details: errorText });
+    }
 
-    console.log("🤖 AI reply:", botReply);
+    const data = await groqResponse.json();
 
-    // This is what Android expects:  { "reply": "..." }
+    const botReply =
+      data?.choices?.[0]?.message?.content?.trim() ||
+      "Sorry, I could not generate a proper answer. Please try again.";
+
+    // Send reply to Android app
     res.json({ reply: botReply });
-
-  } catch (error) {
-    console.error("🔥 Server error in /career-ai:", error);
-
-    // send some info back to app for debugging (no secrets)
-    res.status(500).json({
-      error: "AI server error",
-      detail: error.message || "Unknown error"
-    });
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).json({ error: "AI server error" });
   }
 });
 
-const PORT = process.env.PORT || 3000;
+// ------------ START SERVER -------------
 app.listen(PORT, () => {
-  console.log("🚀 Career AI Backend running on port " + PORT);
+  console.log(`Career AI Backend (Groq) running on port ${PORT}`);
 });
