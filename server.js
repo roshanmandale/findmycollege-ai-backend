@@ -4,31 +4,31 @@ import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 
-// load .env file
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ create OpenAI client (key from environment)
+// ----- OpenAI client -----
 const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-// ✅ simple test route (for browser)
 app.get("/", (req, res) => {
   res.send("Career AI Backend Running 🚀");
 });
 
-// ✅ main API route used by Android app
+// ----- Main endpoint used by Android app -----
 app.post("/career-ai", async (req, res) => {
   try {
     const userMessage = req.body.message;
 
-    if (!userMessage || userMessage.trim().length === 0) {
-      return res.status(400).json({ error: "Message is required" });
+    if (!userMessage || typeof userMessage !== "string") {
+      return res.status(400).json({ error: "Invalid or missing 'message' field" });
     }
+
+    console.log("👉 Received message from app:", userMessage);
 
     const response = await client.chat.completions.create({
       model: "gpt-4.1-mini",
@@ -37,29 +37,34 @@ app.post("/career-ai", async (req, res) => {
           role: "system",
           content:
             "You are an expert Indian career counsellor. " +
-            "Help students decide courses, branches, and suitable colleges based on their marks and interests. " +
-            "Explain in very simple English.",
+            "Give clear, practical guidance about courses, exams and colleges, " +
+            "especially for Maharashtra / India context."
         },
-        { role: "user", content: userMessage },
+        { role: "user", content: userMessage }
       ],
-      max_tokens: 350,
+      max_tokens: 300
     });
 
-    const botReply = response.choices[0]?.message?.content ?? "Sorry, I have no answer.";
+    const botReply = response.choices[0]?.message?.content?.trim() ||
+      "Sorry, I couldn't generate a proper answer. Please try again.";
 
+    console.log("🤖 AI reply:", botReply);
+
+    // This is what Android expects:  { "reply": "..." }
     res.json({ reply: botReply });
-  } catch (error) {
-    console.error("Career AI error:", error);
 
-    // small error message to app
+  } catch (error) {
+    console.error("🔥 Server error in /career-ai:", error);
+
+    // send some info back to app for debugging (no secrets)
     res.status(500).json({
-      error: "AI server error. Please try again later.",
+      error: "AI server error",
+      detail: error.message || "Unknown error"
     });
   }
 });
 
-// ✅ start server (Render will use process.env.PORT)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Career AI backend running on port ${PORT}`);
+  console.log("🚀 Career AI Backend running on port " + PORT);
 });
